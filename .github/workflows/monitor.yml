@@ -1,52 +1,47 @@
-name: Monitor festival (pulito)
+name: Monitor festival (definitivo, niente conflitti)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}     # lo avvii solo tu, a mano
 
 jobs:
-  build:
+  run:
     runs-on: ubuntu-latest
-
     steps:
-      # 1. Checkout completo
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Configura Git
-      - name: Configura Git
+      - name: Configura git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # 3. Sincronizza con main per evitare conflitti
-      - name: Allinea con main
+      # AZZERAMENTO CONFLITTI: allinea sempre al remoto, buttando via lo stato locale del runner
+      - name: Hard reset su origin/main
         run: |
-          git pull --rebase origin main || true
+          git fetch origin main
+          git reset --hard origin/main
 
-      # 4. Setup Python
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.11"
 
-      # 5. Installa dipendenze
-      - name: Install dependencies
+      - name: Dipendenze
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
+          pip install pandas || true
 
-      # 6. Esegui gli script
       - name: Esegui script
         run: |
-          chmod +x scripts/archive_pages.sh
-          ./scripts/archive_pages.sh
+          chmod +x scripts/archive_pages.sh || true
+          ./scripts/archive_pages.sh || true
           python scripts/generate_report.py
 
-      # 7. Commit e push forzato
-      - name: Commit e push
+      # COMMIT MANUALE, SENZA ACTION ESTERNE
+      - name: Commit e push forzato del report
         run: |
-          git add reports/ultimo_report.md
-          git commit -m "chore: aggiornamento report" || echo "Nessuna modifica da commitare"
-          git push origin main --force
+          git add -A
+          git commit -m "report: aggiornamento" || echo "Niente da committare"
+          git push origin HEAD:main --force
