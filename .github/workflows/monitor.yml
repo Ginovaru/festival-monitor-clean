@@ -1,9 +1,9 @@
-name: Monitor festival (demo)
+name: Monitor festival (report reale)
 
 on:
   schedule:
-    - cron: "0 6 * * 1"   # ogni lunedì alle 06:00 UTC
-  workflow_dispatch: {}    # avvio manuale
+    - cron: "0 6 * * 1"      # ogni lunedì 06:00 UTC
+  workflow_dispatch: {}       # avvio manuale
 
 jobs:
   build:
@@ -13,15 +13,68 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Aggiorna report minimale
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install deps
         run: |
-          mkdir -p reports
-          echo "# Report festival – aggiornato $(date -u +'%Y-%m-%d %H:%M UTC')" > reports/ultimo_report.md
-          echo "" >> reports/ultimo_report.md
-          echo "Demo: il robot scrive e committa." >> reports/ultimo_report.md
+          python -m pip install --upgrade pip
+          pip install pandas
+
+      - name: Genera report da CSV
+        run: |
+          python - << 'PY'
+          import pandas as pd, sys
+          from pathlib import Path
+          from datetime import datetime
+
+          data = Path("data/records.csv")
+          reports = Path("reports"); reports.mkdir(parents=True, exist_ok=True)
+          out = reports / "ultimo_report.md"
+
+          if not data.exists():
+            out.write_text("# Report festival – nessun dato\n", encoding="utf-8")
+            sys.exit(0)
+
+          df = pd.read_csv(data)
+          # pulizia minima
+          if "anno" in df.columns:
+            df["anno"] = pd.to_numeric(df["anno"], errors="coerce")
+          now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+          # filtro ultimi 12 mesi (grezzo ma utile con i dati di esempio)
+          if df["anno"].notna().any():
+            recent = df[df["anno"] >= df["anno"].max() - 1]
+          else:
+            recent = df
+
+          # tabella per festival
+          by_fest = recent.groupby("festival")["opera"].count().sort_values(ascending=False)
+
+          # pattern motivazioni
+          keys = ["linguaggio","drammaturgia","innovazione","politico","sociale","corpo","regia","ibridazione","struttura","emotivo"]
+          motifs = {k:0 for k in keys}
+          for s in df["motivazione"].dropna().astype(str).str.lower():
+            for k in keys:
+              if k in s:
+                motifs[k]+=1
+          motifs_series = pd.Series(motifs).sort_values(ascending=False)
+
+          # scrivi markdown
+          lines = []
+          lines.append(f"# Report festival – aggiornato {now}\n")
+          lines.append("## Trend ultimi 12 mesi (conteggio opere segnalate)")
+          lines.append(by_fest.to_markdown() if len(by_fest) else "_Nessun dato_")
+          lines.append("\n## Pattern ricorrenti nelle motivazioni")
+          lines.append(motifs_series.to_frame("occorrenze").to_markdown() if motifs_series.sum() else "_Nessun pattern rilevato_")
+          out.write_text("\n\n".join(lines), encoding="utf-8")
+          PY
 
       - name: Commit automatico
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: aggiornamento report demo"
+          commit_message: "report: aggiornato da CSV"
           file_pattern: reports/ultimo_report.md
