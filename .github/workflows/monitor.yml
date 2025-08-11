@@ -31,12 +31,7 @@ jobs:
           if [ -f config/sources.txt ]; then
             while IFS= read -r url; do
               [ -z "$url" ] && continue
-              host=$(python - <<PY
-from urllib.parse import urlparse
-import sys
-print(urlparse(sys.argv[1]).netloc.replace(':','_'))
-PY
-              "$url")
+              host=$(python -c "from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).netloc.replace(':','_'))" "$url")
               echo ">> scarico $url"
               curl -L --max-time 30 --silent --show-error "$url" > "data/raw/$ts/${host}.html" || true
             done < config/sources.txt
