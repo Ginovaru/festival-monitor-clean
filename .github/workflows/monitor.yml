@@ -2,8 +2,8 @@ name: Monitor festival (report reale)
 
 on:
   schedule:
-    - cron: "0 6 * * 1"      # ogni lunedì 06:00 UTC
-  workflow_dispatch: {}       # avvio manuale
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
 
 jobs:
   build:
@@ -24,6 +24,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas
 
+      - name: Archivia le pagine dei festival (crawler soft)
+        run: |
+          ts=$(date -u +'%Y%m%d')
+          mkdir -p data/raw/$ts
+          if [ -f config/sources.txt ]; then
+            while IFS= read -r url; do
+              [ -z "$url" ] && continue
+              host=$(python - <<PY
+from urllib.parse import urlparse
+import sys
+print(urlparse(sys.argv[1]).netloc.replace(':','_'))
+PY
+              "$url")
+              echo ">> scarico $url"
+              curl -L --max-time 30 --silent --show-error "$url" > "data/raw/$ts/${host}.html" || true
+            done < config/sources.txt
+          fi
+
       - name: Genera report da CSV
         run: |
           python - << 'PY'
@@ -40,21 +58,17 @@ jobs:
             sys.exit(0)
 
           df = pd.read_csv(data)
-          # pulizia minima
           if "anno" in df.columns:
             df["anno"] = pd.to_numeric(df["anno"], errors="coerce")
           now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
-          # filtro ultimi 12 mesi (grezzo ma utile con i dati di esempio)
           if df["anno"].notna().any():
             recent = df[df["anno"] >= df["anno"].max() - 1]
           else:
             recent = df
 
-          # tabella per festival
           by_fest = recent.groupby("festival")["opera"].count().sort_values(ascending=False)
 
-          # pattern motivazioni
           keys = ["linguaggio","drammaturgia","innovazione","politico","sociale","corpo","regia","ibridazione","struttura","emotivo"]
           motifs = {k:0 for k in keys}
           for s in df["motivazione"].dropna().astype(str).str.lower():
@@ -63,7 +77,6 @@ jobs:
                 motifs[k]+=1
           motifs_series = pd.Series(motifs).sort_values(ascending=False)
 
-          # scrivi markdown
           lines = []
           lines.append(f"# Report festival – aggiornato {now}\n")
           lines.append("## Trend ultimi 12 mesi (conteggio opere segnalate)")
@@ -76,5 +89,8 @@ jobs:
       - name: Commit automatico
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "report: aggiornato da CSV"
-          file_pattern: reports/ultimo_report.md
+          commit_message: "crawl+report: aggiornamento settimanale"
+          file_pattern: |
+            data/raw/**
+            reports/ultimo_report.md
+            config/sources.txt
