@@ -1,4 +1,4 @@
-name: Monitor festival (report reale)
+name: Monitor festival (pulito)
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  build:
+  run:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -17,69 +17,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
       - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install pandas
+        run: pip install pandas
 
-      - name: Archivia le pagine dei festival (crawler soft)
-        run: |
-          ts=$(date -u +'%Y%m%d')
-          mkdir -p data/raw/$ts
-          if [ -f config/sources.txt ]; then
-            while IFS= read -r url; do
-              [ -z "$url" ] && continue
-              host=$(python -c "from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).netloc.replace(':','_'))" "$url")
-              echo ">> scarico $url"
-              curl -L --max-time 30 --silent --show-error "$url" > "data/raw/$ts/${host}.html" || true
-            done < config/sources.txt
-          fi
+      - name: Archivia pagine
+        run: bash scripts/archive_pages.sh
 
-      - name: Genera report da CSV
-        run: |
-          python - << 'PY'
-          import pandas as pd, sys
-          from pathlib import Path
-          from datetime import datetime
-
-          data = Path("data/records.csv")
-          reports = Path("reports"); reports.mkdir(parents=True, exist_ok=True)
-          out = reports / "ultimo_report.md"
-
-          if not data.exists():
-            out.write_text("# Report festival – nessun dato\n", encoding="utf-8")
-            sys.exit(0)
-
-          df = pd.read_csv(data)
-          if "anno" in df.columns:
-            df["anno"] = pd.to_numeric(df["anno"], errors="coerce")
-          now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-
-          if df["anno"].notna().any():
-            recent = df[df["anno"] >= df["anno"].max() - 1]
-          else:
-            recent = df
-
-          by_fest = recent.groupby("festival")["opera"].count().sort_values(ascending=False)
-
-          keys = ["linguaggio","drammaturgia","innovazione","politico","sociale","corpo","regia","ibridazione","struttura","emotivo"]
-          motifs = {k:0 for k in keys}
-          for s in df["motivazione"].dropna().astype(str).str.lower():
-            for k in keys:
-              if k in s:
-                motifs[k]+=1
-          motifs_series = pd.Series(motifs).sort_values(ascending=False)
-
-          lines = []
-          lines.append(f"# Report festival – aggiornato {now}\n")
-          lines.append("## Trend ultimi 12 mesi (conteggio opere segnalate)")
-          lines.append(by_fest.to_markdown() if len(by_fest) else "_Nessun dato_")
-          lines.append("\n## Pattern ricorrenti nelle motivazioni")
-          lines.append(motifs_series.to_frame("occorrenze").to_markdown() if motifs_series.sum() else "_Nessun pattern rilevato_")
-          out.write_text("\n\n".join(lines), encoding="utf-8")
-          PY
+      - name: Genera report
+        run: python scripts/generate_report.py
 
       - name: Commit automatico
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -89,3 +35,4 @@ jobs:
             data/raw/**
             reports/ultimo_report.md
             config/sources.txt
+            scripts/**
