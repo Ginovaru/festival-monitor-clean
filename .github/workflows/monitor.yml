@@ -8,42 +8,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout completo del repository
+      # 1. Checkout completo
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Allinea con main prima di lavorare
-      - name: Allinea con origin/main
+      # 2. Configura Git
+      - name: Configura Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # 3. Sincronizza con main per evitare conflitti
+      - name: Allinea con main
+        run: |
           git pull --rebase origin main || true
 
-      # 3. Setup Python
+      # 4. Setup Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      # 4. Installa dipendenze
+      # 5. Installa dipendenze
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
 
-      # 5. Esegui lo script principale
-      - name: Genera report
+      # 6. Esegui gli script
+      - name: Esegui script
         run: |
           chmod +x scripts/archive_pages.sh
           ./scripts/archive_pages.sh
           python scripts/generate_report.py
 
-      # 6. Commit e push dell'aggiornamento
+      # 7. Commit e push forzato
       - name: Commit e push
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: aggiornamento report"
-          file_pattern: reports/ultimo_report.md
-          push_options: --force-with-lease
+        run: |
+          git add reports/ultimo_report.md
+          git commit -m "chore: aggiornamento report" || echo "Nessuna modifica da commitare"
+          git push origin main --force
