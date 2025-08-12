@@ -1,4 +1,4 @@
-name: Monitor festival (con log visibili)
+name: AAA WORKFLOW NUOVO (test)
 
 on:
   workflow_dispatch: {}
@@ -6,62 +6,8 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configura git
+      - name: Echo
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git reset --hard origin/main
-
-      - name: DEBUG - Prima dell'esecuzione
-        run: |
-          echo "----- ROOT -----"; ls -la
-          echo "----- PRIMI 3 LIVELLI -----"; find . -maxdepth 3 -type f | sort
-          echo "----- config/sources.txt -----"
-          cat config/sources.txt || echo "MANCANTE"
-
-      - name: Installa dipendenze Python
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests pandas
-
-      - name: Scarica pagine (Python)
-        run: |
-          echo "Eseguo scripts/archive_pages.py"
-          python3 scripts/archive_pages.py
-          echo "----- CONTENUTO data/raw -----"
-          find data/raw -maxdepth 2 -type f | sort || echo "data/raw MANCANTE"
-
-      - name: Header report (ora di Roma)
-        run: |
-          mkdir -p reports
-          {
-            echo "# Report festival – aggiornato $(TZ=Europe/Rome date +'%Y-%m-%d %H:%M %Z')"
-            echo
-          } > reports/ultimo_report.md
-
-      - name: Aggiungi analisi dal CSV (se presente)
-        run: |
-          if [ -f scripts/generate_report.py ]; then
-            python3 scripts/generate_report.py
-          else
-            echo "_Nessuna analisi: scripts/generate_report.py mancante_" >> reports/ultimo_report.md
-          fi
-
-      - name: DEBUG - Differenze prima del commit
-        run: |
-          echo "----- FILE MODIFICATI -----"
-          git status --porcelain=v1 || true
-
-      - name: Commit e push
-        run: |
-          git add reports/ultimo_report.md data/raw data/records.csv || true
-          git commit -m "crawl+report: aggiornamento" || echo "Niente da committare"
-          git push origin HEAD:main --force
+          echo "QUESTO È IL WORKFLOW NUOVO"
+          echo "REF: $GITHUB_WORKFLOW_REF"
