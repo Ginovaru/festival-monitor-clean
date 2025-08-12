@@ -1,13 +1,35 @@
-name: ZZZ WORKFLOW TEST
+name: Monitor festival (OK)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {}   # lo avvii a mano dal tab Actions
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Echo
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configura git
         run: |
-          echo "WORKFLOW ATTIVO OK"
-          echo "FILE CORRENTE: $GITHUB_WORKFLOW_REF"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Aggiorna report
+        run: |
+          mkdir -p reports
+          {
+            echo "# Report festival – aggiornato $(date -u +'%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "Demo minima: il workflow gira e salva."
+          } > reports/ultimo_report.md
+
+      - name: Commit e push forzato
+        run: |
+          git add reports/ultimo_report.md
+          git commit -m "aggiornamento report (minimo)" || echo "Niente da committare"
+          git push origin HEAD:main --force
