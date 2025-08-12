@@ -1,7 +1,7 @@
-name: Monitor festival (definitivo, niente conflitti)
+name: Monitor festival (senza conflitti)
 
 on:
-  workflow_dispatch: {}     # lo avvii solo tu, a mano
+  workflow_dispatch: {}
 
 jobs:
   run:
@@ -16,10 +16,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      # AZZERAMENTO CONFLITTI: allinea sempre al remoto, buttando via lo stato locale del runner
-      - name: Hard reset su origin/main
-        run: |
           git fetch origin main
           git reset --hard origin/main
 
@@ -31,17 +27,16 @@ jobs:
       - name: Dipendenze
         run: |
           python -m pip install --upgrade pip
-          pip install pandas || true
+          pip install pandas
 
       - name: Esegui script
         run: |
-          chmod +x scripts/archive_pages.sh || true
-          ./scripts/archive_pages.sh || true
+          chmod +x scripts/archive_pages.sh
+          ./scripts/archive_pages.sh
           python scripts/generate_report.py
 
-      # COMMIT MANUALE, SENZA ACTION ESTERNE
-      - name: Commit e push forzato del report
+      - name: Commit e push forzato
         run: |
           git add -A
-          git commit -m "report: aggiornamento" || echo "Niente da committare"
+          git commit -m "aggiornamento report" || echo "Niente da committare"
           git push origin HEAD:main --force
