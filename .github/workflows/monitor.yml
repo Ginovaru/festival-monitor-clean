@@ -1,62 +1,43 @@
-name: Monitor festival (pipeline completa)
+from pathlib import Path
+from datetime import datetime
+import pandas as pd
 
-on:
-  workflow_dispatch: {}   # avvio manuale
+data = Path("data/records.csv")
+reports = Path("reports"); reports.mkdir(parents=True, exist_ok=True)
+out = reports / "ultimo_report.md"
 
-jobs:
-  run:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
+if not data.exists():
+    with out.open("a", encoding="utf-8") as f:
+        f.write("\n_(records.csv mancante: nessun dato da analizzare)_\n")
+    raise SystemExit(0)
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+df = pd.read_csv(data)
 
-      - name: Configura git e allinea a main
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git reset --hard origin/main
+if "anno" in df.columns:
+    df["anno"] = pd.to_numeric(df["anno"], errors="coerce")
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-      - name: Installa dipendenze
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+# ultimi ~12 mesi se c'è la colonna anno (grezzo)
+recent = df
+if df["anno"].notna().any():
+    recent = df[df["anno"] >= df["anno"].max() - 1]
 
-      # Scarico le pagine in modo "soft" (timeout duri per non bloccarsi)
-      - name: Scarica pagine (snapshot)
-        run: |
-          chmod +x scripts/archive_pages.sh
-          ./scripts/archive_pages.sh
+by_fest = recent.groupby("festival")["opera"].count().sort_values(ascending=False)
 
-      # Estraggo da HTML -> aggiungo record al CSV (evita duplicati)
-      - name: Parser HTML -> CSV
-        run: |
-          python scripts/parse_html_to_csv.py
+keys = ["linguaggio","drammaturgia","innovazione","politico","sociale","corpo","regia","ibridazione","struttura","emotivo"]
+motifs = {k:0 for k in keys}
+for s in df.get("motivazione", pd.Series(dtype=str)).dropna().astype(str).str.lower():
+    for k in keys:
+        if k in s:
+            motifs[k] += 1
+motifs_series = pd.Series(motifs).sort_values(ascending=False)
 
-      # Aggiorno report (ora di Roma) e analisi dal CSV
-      - name: Header report (ora di Roma)
-        run: |
-          mkdir -p reports
-          {
-            echo "# Report festival – aggiornato $(TZ=Europe/Rome date +'%Y-%m-%d %H:%M %Z')"
-            echo
-          } > reports/ultimo_report.md
+parts = []
+parts.append("## Trend ultimi 12 mesi (conteggio opere segnalate)")
+parts.append(by_fest.to_markdown() if len(by_fest) else "_Nessun dato_")
+parts.append("\n## Pattern ricorrenti nelle motivazioni")
+parts.append(motifs_series.to_frame("occorrenze").to_markdown() if motifs_series.sum() else "_Nessun pattern rilevato_")
 
-      - name: Genera analisi dal CSV
-        run: |
-          python scripts/generate_report.py
-
-      - name: Commit e push forzato
-        run: |
-          git add -A
-          git commit -m "crawl+parse+report: aggiornamento" || echo "Niente da committare"
-          git push origin HEAD:main --force
+with out.open("a", encoding="utf-8") as f:
+    f.write("\n".join(parts) + "\n")
