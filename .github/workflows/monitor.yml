@@ -1,4 +1,4 @@
-name: Monitor festival (senza conflitti)
+name: ZZZ WORKFLOW TEST
 
 on:
   workflow_dispatch: {}
@@ -7,36 +7,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configura git
+      - name: Echo
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git reset --hard origin/main
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Dipendenze
-        run: |
-          python -m pip install --upgrade pip
-          pip install pandas
-
-      - name: Esegui script
-        run: |
-          chmod +x scripts/archive_pages.sh
-          ./scripts/archive_pages.sh
-          python scripts/generate_report.py
-
-      - name: Commit e push forzato
-        run: |
-          git add -A
-          git commit -m "aggiornamento report" || echo "Niente da committare"
-          git push origin HEAD:main --force
+          echo "WORKFLOW ATTIVO OK"
+          echo "FILE CORRENTE: $GITHUB_WORKFLOW_REF"
