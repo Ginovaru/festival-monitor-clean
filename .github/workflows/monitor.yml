@@ -1,12 +1,12 @@
-name: Monitor festival (OK Roma)
+name: Monitor festival (pipeline completa)
 
 on:
-  workflow_dispatch: {}   # lo avvii a mano dal tab Actions
+  workflow_dispatch: {}   # avvio manuale
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - name: Checkout
@@ -26,30 +26,37 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Dipendenze Python (solo pandas)
+      - name: Installa dipendenze
         run: |
           python -m pip install --upgrade pip
-          pip install pandas
+          pip install -r requirements.txt
 
-      - name: Aggiorna report (ora di Roma)
+      # Scarico le pagine in modo "soft" (timeout duri per non bloccarsi)
+      - name: Scarica pagine (snapshot)
+        run: |
+          chmod +x scripts/archive_pages.sh
+          ./scripts/archive_pages.sh
+
+      # Estraggo da HTML -> aggiungo record al CSV (evita duplicati)
+      - name: Parser HTML -> CSV
+        run: |
+          python scripts/parse_html_to_csv.py
+
+      # Aggiorno report (ora di Roma) e analisi dal CSV
+      - name: Header report (ora di Roma)
         run: |
           mkdir -p reports
           {
             echo "# Report festival – aggiornato $(TZ=Europe/Rome date +'%Y-%m-%d %H:%M %Z')"
             echo
-            echo "Se esiste scripts/generate_report.py, lo eseguo sotto."
           } > reports/ultimo_report.md
 
-      - name: Esegui script report se presente (opzionale, non fallisce se manca)
+      - name: Genera analisi dal CSV
         run: |
-          if [ -f scripts/generate_report.py ]; then
-            python scripts/generate_report.py
-          else
-            echo "scripts/generate_report.py non trovato: salto."
-          fi
+          python scripts/generate_report.py
 
       - name: Commit e push forzato
         run: |
           git add -A
-          git commit -m "aggiornamento report (Roma)" || echo "Niente da committare"
+          git commit -m "crawl+parse+report: aggiornamento" || echo "Niente da committare"
           git push origin HEAD:main --force
