@@ -1,4 +1,4 @@
-name: Monitor festival (OK)
+name: Monitor festival (OK Roma)
 
 on:
   workflow_dispatch: {}   # lo avvii a mano dal tab Actions
@@ -6,30 +6,50 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Configura git
+      - name: Configura git e allinea a main
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git reset --hard origin/main
 
-      - name: Aggiorna report
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Dipendenze Python (solo pandas)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas
+
+      - name: Aggiorna report (ora di Roma)
         run: |
           mkdir -p reports
           {
-            echo "# Report festival – aggiornato $(date -u +'%Y-%m-%d %H:%M UTC')"
+            echo "# Report festival – aggiornato $(TZ=Europe/Rome date +'%Y-%m-%d %H:%M %Z')"
             echo
-            echo "Demo minima: il workflow gira e salva."
+            echo "Se esiste scripts/generate_report.py, lo eseguo sotto."
           } > reports/ultimo_report.md
+
+      - name: Esegui script report se presente (opzionale, non fallisce se manca)
+        run: |
+          if [ -f scripts/generate_report.py ]; then
+            python scripts/generate_report.py
+          else
+            echo "scripts/generate_report.py non trovato: salto."
+          fi
 
       - name: Commit e push forzato
         run: |
-          git add reports/ultimo_report.md
-          git commit -m "aggiornamento report (minimo)" || echo "Niente da committare"
+          git add -A
+          git commit -m "aggiornamento report (Roma)" || echo "Niente da committare"
           git push origin HEAD:main --force
